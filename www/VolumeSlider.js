@@ -60,8 +60,9 @@ module.exports = {
          },
          null, "VolumeSlider", "getVolumeUpdate", []);
     },
-	
-	unRegisterVolumeUpdate: function() {
+    
+    unRegisterVolumeUpdate: function() {
         exec(null,null, "VolumeSlider", "removeVolumeUpdate", []);
     }
 };
+
