@@ -19,6 +19,7 @@ public class VolumeSlider extends CordovaPlugin {
     private AudioManager audioManager;
     private static final String TAG = "volume_slider";
     double current_volume = 0.2;
+	private CallbackContext messageChannel;
 
     private int cssToViewUnit(double size) {
         return (int)Math.abs(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, (float)size,
@@ -84,6 +85,26 @@ public class VolumeSlider extends CordovaPlugin {
             });
             return true;
         }
+		
+		if (action.equals("getVolumeLevel")) {
+			float vol = getVolumeLevel();
+			PluginResult result = new PluginResult((vol>-1?Status.OK:Status.ERROR), vol);
+			callbackContext.sendPluginResult(result);
+			return true;
+		}
+
+		if (action.equals("getVolumeUpdate")) {
+			messageChannel = callbackContext;
+			registerVolumeChangeEvent();
+			return true;
+		}
+
+		if (action.equals("removeVolumeUpdate")) {
+			messageChannel = null;
+			unRegisterVolumeChangeEvent();
+			return true;
+		}
+		
         return false;
     }
 
@@ -146,4 +167,53 @@ public class VolumeSlider extends CordovaPlugin {
         Log.d(TAG, "RESET VOLUME TO: " + current_volume);
         audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, (int)(current_volume), 0);
     }
+	
+	private float getVolumeLevel() {
+		if (audioManager != null) {
+			float vol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
+			float max = audioManager
+					.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+			// We map volume to a range of 0.0 - 1.0
+			float normVolume = vol / max;
+			String s = String.format("%.2f", normVolume);
+			
+			return Float.parseFloat(s);
+		}
+		return -1;
+	}
+
+	private void registerVolumeChangeEvent() {
+		cordova.getActivity()
+				.getContentResolver()
+				.registerContentObserver(
+						android.provider.Settings.System.CONTENT_URI, true,
+						mVolumeObserver);
+	}
+
+	private void unRegisterVolumeChangeEvent() {
+		cordova.getActivity().getContentResolver()
+				.unregisterContentObserver(mVolumeObserver);
+	}
+
+	private ContentObserver mVolumeObserver = new ContentObserver(new Handler()) {
+		@Override
+		public void onChange(boolean selfChange) {
+			super.onChange(selfChange);
+			if (volumeSeekBar != null && audioManager != null) {
+				int volume = audioManager
+						.getStreamVolume(AudioManager.STREAM_MUSIC);
+				volumeSeekBar.setProgress(volume);
+			}
+			sendVolumeEvent(getVolumeLevel());
+		}
+	};
+
+	void sendVolumeEvent(float volume) {
+		PluginResult pluginResult = new PluginResult((volume>-1?Status.OK:Status.ERROR), volume);
+		pluginResult.setKeepCallback(true);
+		if (messageChannel != null) {
+			messageChannel.sendPluginResult(pluginResult);
+		}
+	}
+
 }
